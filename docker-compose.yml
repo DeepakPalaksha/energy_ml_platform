@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    container_name: energy-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5001
+      - ENV=production
+      - DATABASE_URL=sqlite:///./data/energy_platform.db
+    volumes:
+      - ./data:/app/data
+      - mlruns:/app/mlruns
+    depends_on:
+      - mlflow
+    restart: unless-stopped
+
+  training:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.training
+    container_name: energy-training
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5001
+    volumes:
+      - ./data:/app/data
+      - mlruns:/app/mlruns
+    depends_on:
+      - mlflow
+    profiles:
+      - training  # Only runs when explicitly invoked
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.8.1
+    container_name: mlflow-server
+    ports:
+      - "5001:5001"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5001
+      --backend-store-uri sqlite:///mlflow.db
+      --default-artifact-root /mlartifacts
+    volumes:
+      - mlruns:/mlartifacts
+      - mlflow-db:/mlflow.db
+    restart: unless-stopped
+
+  prefect-server:
+    image: prefecthq/prefect:2-latest
+    container_name: prefect-server
+    ports:
+      - "4200:4200"
+    command: prefect server start --host 0.0.0.0
+    restart: unless-stopped
+    profiles:
+      - orchestration
+
+volumes:
+  mlruns:
+  mlflow-db:

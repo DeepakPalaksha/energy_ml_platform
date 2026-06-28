@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  namespace: energy-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+        - name: mlflow
+          image: ghcr.io/mlflow/mlflow:v2.8.1
+          command:
+            - mlflow
+            - server
+            - --host=0.0.0.0
+            - --port=5001
+            - --backend-store-uri=sqlite:///mlflow.db
+            - --default-artifact-root=/mlartifacts
+          ports:
+            - containerPort: 5001
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-service
+  namespace: energy-platform
+spec:
+  selector:
+    app: mlflow
+  ports:
+    - port: 5001
+      targetPort: 5001
+  type: ClusterIP
+---
+# Prefect worker placeholder
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prefect-worker
+  namespace: energy-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prefect-worker
+  template:
+    metadata:
+      labels:
+        app: prefect-worker
+    spec:
+      containers:
+        - name: prefect-worker
+          image: prefecthq/prefect:2-latest
+          command:
+            - prefect
+            - worker
+            - start
+            - --pool=default-agent-pool
+          env:
+            - name: PREFECT_API_URL
+              value: "http://prefect-server:4200/api"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"

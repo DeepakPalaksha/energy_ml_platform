@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: energy-api
+  namespace: energy-platform
+  labels:
+    app: energy-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: energy-api
+  template:
+    metadata:
+      labels:
+        app: energy-api
+    spec:
+      containers:
+        - name: energy-api
+          image: energy-ml-platform/api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow-service:5001"
+            - name: ENV
+              value: "production"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: energy-api-service
+  namespace: energy-platform
+spec:
+  selector:
+    app: energy-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: LoadBalancer

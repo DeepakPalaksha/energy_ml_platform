@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/ ./src/
+COPY .env.example .env
+
+ENV PYTHONPATH=/app/src
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Full pipeline: generate → preprocess → train
+CMD ["python", "-c", "\
+import sys; sys.path.insert(0, 'src'); \
+from energy_platform.pipelines.prefect_flows import full_pipeline_flow; \
+full_pipeline_flow()"]

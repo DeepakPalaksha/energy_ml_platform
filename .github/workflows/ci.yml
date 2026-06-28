@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: src
+          MLFLOW_TRACKING_URI: sqlite:///mlflow_test.db
+        run: pytest tests/ -v --tb=short
+
+  build-api:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API Docker image
+        run: docker build -f infra/docker/Dockerfile.api -t energy-api:${{ github.sha }} .
+
+      - name: Smoke test container
+        run: |
+          docker run -d --name api-test -p 8000:8000 \
+            -e MLFLOW_TRACKING_URI=sqlite:///mlflow.db \
+            energy-api:${{ github.sha }}
+          sleep 5
+          curl --fail http://localhost:8000/health
+          docker stop api-test
